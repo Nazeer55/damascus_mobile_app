@@ -41,6 +41,26 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _submit(LanguageService ls) async {
+    final email    = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ls.t('invalid_email')),
+        backgroundColor: AppTheme.danger,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    if (password.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ls.t('password_too_short')),
+        backgroundColor: AppTheme.danger,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       if (SupabaseService.isPlaceholder) {

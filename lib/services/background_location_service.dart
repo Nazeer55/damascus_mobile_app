@@ -70,7 +70,7 @@ class BackgroundLocationService {
     // with persistent notification. We use standard Workmanager here as requested.
     await Workmanager().initialize(
         callbackDispatcher, // The top level function
-        isInDebugMode: true // If enabled it will post a notification whenever the task is running
+        isInDebugMode: false
     );
   }
 

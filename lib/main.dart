@@ -36,7 +36,7 @@ class DamascusTrafficApp extends StatelessWidget {
       builder: (context, ls, _) {
         return MaterialApp(
           title: ls.t('app_name'),
-          theme: AppTheme.themeData,
+          theme: ls.isArabic ? AppTheme.arabicTheme : AppTheme.themeData,
           debugShowCheckedModeBanner: false,
           builder: (context, child) {
             return Directionality(

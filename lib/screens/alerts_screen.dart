@@ -1,8 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../services/language_service.dart';
+import '../services/supabase_service.dart';
+import '../utils/time_ago.dart';
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({Key? key}) : super(key: key);
@@ -12,55 +15,133 @@ class AlertsScreen extends StatefulWidget {
 
 class _AlertsScreenState extends State<AlertsScreen> {
   String _selectedFilter = 'all';
+  RealtimeChannel? _channel;
 
-  final List<Map<String, dynamic>> _alerts = [
+  List<Map<String, dynamic>> _alerts = [
     {
       'title_ar': 'حادث تصادم خطير', 'title_en': 'Serious Traffic Accident',
       'body_ar': 'تصادم بين مركبتين على طريق المطار الدولي، يرجى تجنب المنطقة واتخاذ طرق بديلة',
       'body_en': 'Two-vehicle collision on International Airport Road, please avoid the area and use alternative routes',
-      'severity': 'high', 'street_ar': 'طريق المطار الدولي', 'street_en': 'International Airport Rd',
+      'severity': 'heavy', 'street_ar': 'طريق المطار الدولي', 'street_en': 'International Airport Rd',
       'time_ar': 'منذ 5 دقائق', 'time_en': '5 min ago', 'icon': Icons.car_crash,
     },
     {
       'title_ar': 'ازدحام مروري شديد', 'title_en': 'Heavy Traffic Congestion',
       'body_ar': 'ازدحام خانق على جسر الرئيس بسبب أعمال صيانة مفاجئة، التأخير أكثر من 25 دقيقة',
       'body_en': 'Severe congestion on Al-Rais Bridge due to sudden maintenance work, delay over 25 minutes',
-      'severity': 'high', 'street_ar': 'جسر الرئيس', 'street_en': 'Al-Rais Bridge',
+      'severity': 'heavy', 'street_ar': 'جسر الرئيس', 'street_en': 'Al-Rais Bridge',
       'time_ar': 'منذ 12 دقيقة', 'time_en': '12 min ago', 'icon': Icons.traffic,
     },
     {
       'title_ar': 'طريق مغلق جزئياً', 'title_en': 'Partial Road Closure',
       'body_ar': 'إغلاق جزئي لشارع بغداد بسبب حفريات، حارتان من أصل أربع مغلقتان',
       'body_en': 'Partial closure on Baghdad Street due to excavation, two out of four lanes closed',
-      'severity': 'medium', 'street_ar': 'شارع بغداد', 'street_en': 'Baghdad Street',
+      'severity': 'moderate', 'street_ar': 'شارع بغداد', 'street_en': 'Baghdad Street',
       'time_ar': 'منذ 28 دقيقة', 'time_en': '28 min ago', 'icon': Icons.do_not_disturb_on,
     },
     {
       'title_ar': 'تحسّن في حركة المرور', 'title_en': 'Traffic Improving',
       'body_ar': 'عادت الحركة إلى طبيعتها على شارع الثورة بعد رفع الحادث السابق',
       'body_en': 'Traffic back to normal on Al-Thawra Street after earlier incident was cleared',
-      'severity': 'low', 'street_ar': 'شارع الثورة', 'street_en': 'Al-Thawra Street',
+      'severity': 'normal', 'street_ar': 'شارع الثورة', 'street_en': 'Al-Thawra Street',
       'time_ar': 'منذ 45 دقيقة', 'time_en': '45 min ago', 'icon': Icons.check_circle_outline,
     },
     {
       'title_ar': 'فيضان خفيف', 'title_en': 'Minor Flooding',
       'body_ar': 'تجمع مياه الأمطار عند نفق ميسلون مما يسبب بطءاً في الحركة',
       'body_en': 'Rainwater accumulation at Maysaloun tunnel causing slow traffic',
-      'severity': 'medium', 'street_ar': 'نفق ميسلون', 'street_en': 'Maysaloun Tunnel',
+      'severity': 'moderate', 'street_ar': 'نفق ميسلون', 'street_en': 'Maysaloun Tunnel',
       'time_ar': 'منذ ساعة', 'time_en': '1 hour ago', 'icon': Icons.water,
     },
   ];
 
+  static IconData _iconForKey(String? key) {
+    switch (key) {
+      case 'car_crash':           return Icons.car_crash;
+      case 'traffic':             return Icons.traffic;
+      case 'check_circle_outline':return Icons.check_circle_outline;
+      case 'do_not_disturb_on':   return Icons.do_not_disturb_on;
+      case 'water':               return Icons.water;
+      case 'construction':        return Icons.construction;
+      default:                    return Icons.warning_rounded;
+    }
+  }
+
+  Map<String, dynamic> _rowToAlert(Map<String, dynamic> row) {
+    final ts = row['created_at'] != null
+        ? DateTime.tryParse(row['created_at'] as String)
+        : null;
+    return {
+      'title_ar':  row['title_ar']  ?? '',
+      'title_en':  row['title_en']  ?? '',
+      'body_ar':   row['body_ar']   ?? '',
+      'body_en':   row['body_en']   ?? '',
+      'severity':  row['severity']  ?? 'normal',
+      'street_ar': row['street_ar'] ?? '',
+      'street_en': row['street_en'] ?? '',
+      'time_ar':   ts != null ? timeAgo(ts, arabic: true) : '',
+      'time_en':   ts != null ? timeAgo(ts) : '',
+      'icon':      _iconForKey(row['icon_key'] as String?),
+    };
+  }
+
+  Future<void> _loadAlerts() async {
+    if (SupabaseService.isPlaceholder) return;
+    try {
+      final data = await SupabaseService.alerts
+          .select()
+          .order('created_at', ascending: false)
+          .limit(20);
+      if (data is List && data.isNotEmpty && mounted) {
+        setState(() => _alerts = data.map(_rowToAlert).toList());
+      }
+    } catch (e) {
+      debugPrint('AlertsScreen._loadAlerts: $e');
+    }
+    _subscribeRealtime();
+  }
+
+  void _subscribeRealtime() {
+    if (SupabaseService.isPlaceholder) return;
+    _channel = SupabaseService.client.channel('alerts-screen');
+    _channel!
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'alerts',
+          callback: (PostgresChangePayload payload) {
+            if (!mounted) return;
+            setState(() => _alerts.insert(0, _rowToAlert(payload.newRecord)));
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAlerts();
+  }
+
+  @override
+  void dispose() {
+    if (_channel != null) {
+      SupabaseService.client.removeChannel(_channel!);
+    }
+    super.dispose();
+  }
+
   List<Map<String, dynamic>> _filteredAlerts(String filterKey) {
     if (filterKey == 'all') return _alerts;
-    final map = {'filter_severe': 'high', 'filter_moderate': 'medium', 'filter_info': 'low'};
+    final map = {'filter_severe': 'heavy', 'filter_moderate': 'moderate', 'filter_info': 'normal'};
     return _alerts.where((a) => a['severity'] == map[filterKey]).toList();
   }
 
   Color _severityColor(String s) {
     switch (s) {
-      case 'high': return AppTheme.danger;
-      case 'medium': return AppTheme.warning;
+      case 'heavy': return AppTheme.danger;
+      case 'moderate': return AppTheme.warning;
+      case 'closed': return AppTheme.closed;
       default: return AppTheme.normal;
     }
   }
@@ -224,7 +305,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                                       Container(
                                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                         decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(50), border: Border.all(color: color.withOpacity(0.3))),
-                                                        child: Text(ls.t(alert['severity'] == 'high' ? 'severity_high' : alert['severity'] == 'medium' ? 'severity_medium' : 'severity_low'), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                        child: Text(ls.t(alert['severity'] == 'heavy' ? 'severity_high' : alert['severity'] == 'moderate' ? 'severity_medium' : 'severity_low'), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
                                                       ),
                                                       const SizedBox(width: 8),
                                                       Text(time, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10)),

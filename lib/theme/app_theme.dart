@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // ── Brand Colors (Forest Backgrounds & Golden Accents) ──
@@ -18,8 +19,7 @@ class AppTheme {
   static const Color normal  = Color(0xFF428177); // Forest light replaces generic green
   static const Color closed  = Color(0xFF9E9E9E); // grey
 
-  static ThemeData get themeData {
-    return ThemeData(
+  static ThemeData _base(TextTheme fontTheme) => ThemeData(
       brightness: Brightness.dark,
       scaffoldBackgroundColor: background,
       primaryColor: primaryAccent,
@@ -30,10 +30,10 @@ class AppTheme {
         surface: cardBackground,
         error: danger,
       ),
-      textTheme: const TextTheme(
-        bodyLarge:  TextStyle(color: textPrimary,   fontSize: 16),
-        bodyMedium: TextStyle(color: textSecondary, fontSize: 14),
-        titleLarge: TextStyle(color: textPrimary,   fontSize: 22, fontWeight: FontWeight.bold),
+      textTheme: fontTheme.copyWith(
+        bodyLarge:  fontTheme.bodyLarge?.copyWith(color: textPrimary,   fontSize: 16),
+        bodyMedium: fontTheme.bodyMedium?.copyWith(color: textSecondary, fontSize: 14),
+        titleLarge: fontTheme.titleLarge?.copyWith(color: textPrimary,   fontSize: 22, fontWeight: FontWeight.bold),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: background,
@@ -68,5 +68,7 @@ class AppTheme {
         ),
       ),
     );
-  }
+
+  static ThemeData get themeData   => _base(GoogleFonts.interTextTheme());
+  static ThemeData get arabicTheme => _base(GoogleFonts.cairoTextTheme());
 }

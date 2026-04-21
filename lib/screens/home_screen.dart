@@ -6,6 +6,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../services/language_service.dart';
+import '../services/supabase_service.dart';
+import '../utils/time_ago.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -20,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   static const LatLng _damascusCenter = LatLng(33.5138, 36.2765);
 
-  final List<Map<String, dynamic>> _roads = [
+  List<Map<String, dynamic>> _roads = [
     {'name': 'Airport Road', 'status': 'heavy', 'points': [LatLng(33.4950, 36.2400), LatLng(33.5050, 36.2600), LatLng(33.5138, 36.2765)]},
     {'name': 'Al-Thawra St', 'status': 'normal', 'points': [LatLng(33.5138, 36.2765), LatLng(33.5200, 36.2900), LatLng(33.5280, 36.3050)]},
     {'name': 'Al-Rais Bridge', 'status': 'moderate', 'points': [LatLng(33.5070, 36.2800), LatLng(33.5138, 36.2765), LatLng(33.5060, 36.2700)]},
@@ -29,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     {'name': 'Mezzeh Rd', 'status': 'moderate', 'points': [LatLng(33.5138, 36.2765), LatLng(33.5100, 36.2550), LatLng(33.5050, 36.2350)]},
   ];
 
-  final List<Map<String, dynamic>> _nearbyAlerts = [
+  List<Map<String, dynamic>> _nearbyAlerts = [
     {'street': 'طريق المطار الدولي', 'street_en': 'International Airport Rd', 'severity': 'heavy', 'distance': '1.2 km', 'time_ar': 'منذ 3 دقائق', 'time_en': '3 min ago', 'icon': Icons.warning_rounded},
     {'street': 'جسر الرئيس', 'street_en': 'Al-Rais Bridge', 'severity': 'moderate', 'distance': '2.5 km', 'time_ar': 'منذ 8 دقائق', 'time_en': '8 min ago', 'icon': Icons.traffic},
     {'street': 'شارع الثورة', 'street_en': 'Al-Thawra Street', 'severity': 'normal', 'distance': '3.8 km', 'time_ar': 'منذ 12 دقيقة', 'time_en': '12 min ago', 'icon': Icons.check_circle_outline},
@@ -56,11 +58,78 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }).toList();
 
+  static IconData _iconForKey(String? key) {
+    switch (key) {
+      case 'car_crash':           return Icons.car_crash;
+      case 'traffic':             return Icons.traffic;
+      case 'check_circle_outline':return Icons.check_circle_outline;
+      case 'do_not_disturb_on':   return Icons.do_not_disturb_on;
+      case 'water':               return Icons.water;
+      case 'construction':        return Icons.construction;
+      default:                    return Icons.warning_rounded;
+    }
+  }
+
+  Future<void> _loadData() async {
+    if (SupabaseService.isPlaceholder) return;
+    try {
+      // Load roads
+      final roadsData = await SupabaseService.roadStatuses.select();
+      if (roadsData is List && roadsData.isNotEmpty) {
+        final roads = <Map<String, dynamic>>[];
+        for (final row in roadsData) {
+          final geom = row['geometry'] as Map<String, dynamic>?;
+          if (geom == null || geom['type'] != 'LineString') continue;
+          final coords = (geom['coordinates'] as List)
+              .map((c) {
+                final pair = c as List;
+                return LatLng(pair[1].toDouble(), pair[0].toDouble());
+              })
+              .toList();
+          if (coords.length < 2) continue;
+          roads.add({
+            'name': row['name_en'] ?? '',
+            'status': row['status'] ?? 'normal',
+            'points': coords,
+          });
+        }
+        if (roads.isNotEmpty && mounted) setState(() => _roads = roads);
+      }
+
+      // Load nearby alerts
+      final alertsData = await SupabaseService.alerts
+          .select()
+          .order('created_at', ascending: false)
+          .limit(4);
+      if (alertsData is List && alertsData.isNotEmpty && mounted) {
+        setState(() {
+          _nearbyAlerts = alertsData.map((row) {
+            final ts = row['created_at'] != null
+                ? DateTime.tryParse(row['created_at'] as String)
+                : null;
+            return <String, dynamic>{
+              'street':    row['street_ar'] ?? '',
+              'street_en': row['street_en'] ?? '',
+              'severity':  row['severity']  ?? 'normal',
+              'distance':  '',
+              'time_ar':   ts != null ? timeAgo(ts, arabic: true) : '',
+              'time_en':   ts != null ? timeAgo(ts) : '',
+              'icon':      _iconForKey(row['icon_key'] as String?),
+            };
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('HomeScreen._loadData: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..repeat(reverse: true);
     _pulseAnim = Tween<double>(begin: 0.4, end: 1.0).animate(_pulseController);
+    _loadData();
   }
 
   @override

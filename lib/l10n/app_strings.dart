@@ -64,6 +64,9 @@ class AppStrings {
       'type_construction': 'أعمال صيانة',
       'type_other': 'أخرى',
       'select_location': 'تحديد الموقع',
+      'confirm_location_first': 'يرجى تحديد الموقع على الخريطة أولاً',
+      'invalid_email': 'يرجى إدخال بريد إلكتروني صحيح',
+      'password_too_short': 'كلمة المرور يجب أن تكون 8 أحرف على الأقل',
 
       // Alerts
       'alerts_title': 'التنبيهات',
@@ -171,6 +174,9 @@ class AppStrings {
       'type_construction': 'Construction',
       'type_other': 'Other',
       'select_location': 'Confirm Location',
+      'confirm_location_first': 'Please pin a location on the map first',
+      'invalid_email': 'Please enter a valid email address',
+      'password_too_short': 'Password must be at least 8 characters',
 
       // Alerts
       'alerts_title': 'Alerts',

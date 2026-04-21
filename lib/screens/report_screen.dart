@@ -17,6 +17,7 @@ class _ReportScreenState extends State<ReportScreen> with TickerProviderStateMix
   final _descriptionController = TextEditingController();
   String _selectedType = 'Traffic Jam';
   bool _isSubmitting = false;
+  bool _locationConfirmed = false;
   final MapController _mapController = MapController();
   static const LatLng _damascusCenter = LatLng(33.5138, 36.2765);
   late AnimationController _successController;
@@ -45,14 +46,25 @@ class _ReportScreenState extends State<ReportScreen> with TickerProviderStateMix
   }
 
   Future<void> _submitReport() async {
+    if (!_locationConfirmed) {
+      final ls = Provider.of<LanguageService>(context, listen: false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ls.t('confirm_location_first')),
+        backgroundColor: AppTheme.warning,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 1200));
     try {
       if (!SupabaseService.isPlaceholder) {
+        final center = _mapController.camera.center;
         await SupabaseService.incidentReports.insert({
           'user_id': SupabaseService.client.auth.currentUser?.id,
           'type': _selectedType,
-          'lat': 33.5138, 'lng': 36.2765,
+          'lat': center.latitude,
+          'lng': center.longitude,
           'description': _descriptionController.text,
           'status': 'pending',
           'created_at': DateTime.now().toIso8601String(),
@@ -138,7 +150,7 @@ class _ReportScreenState extends State<ReportScreen> with TickerProviderStateMix
                               ),
                               children: [
                                 TileLayer(
-                                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
                                   subdomains: const ['a', 'b', 'c', 'd'],
                                   userAgentPackageName: 'com.damascustraffic.app',
                                 ),
@@ -180,8 +192,9 @@ class _ReportScreenState extends State<ReportScreen> with TickerProviderStateMix
                                 onPressed: () {
                                   final center = _mapController.camera.center;
                                   final coords = '${center.latitude.toStringAsFixed(5)}, ${center.longitude.toStringAsFixed(5)}';
-                                  
+
                                   setState(() {
+                                    _locationConfirmed = true;
                                     if (!_descriptionController.text.contains(coords)) {
                                       if (_descriptionController.text.isEmpty) {
                                         _descriptionController.text = 'Location: $coords\n';
@@ -192,8 +205,8 @@ class _ReportScreenState extends State<ReportScreen> with TickerProviderStateMix
                                   });
 
                                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text(ls.t('location_name') + ' - ' + ls.t('select_location')),
-                                    backgroundColor: AppTheme.primaryDark,
+                                    content: Text(ls.t('select_location')),
+                                    backgroundColor: AppTheme.normal,
                                     duration: const Duration(seconds: 2),
                                     behavior: SnackBarBehavior.floating,
                                   ));
